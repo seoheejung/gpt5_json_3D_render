@@ -135,7 +135,7 @@ json_3D_render/
     └── index.html   # 단일 HTML 파일 (Three.js + OrbitControls + GLTFExporter)
 ```
 ### 📄 서버 없이도 바로 URL로 실행 (GitHub Pages 이용)
-- GitHub에 새 리포지토리를 하나 만들고 left_turn_maze.html 파일을 업로드
+- GitHub에 새 리포지토리를 하나 만들고 index.html 파일을 업로드
 - 리포지토리의 Settings → Pages 메뉴에서 Branch: main + / (root) 선택 후 저장
 - 몇 분 뒤에 https://seoheejung.github.io/gpt5_json_3D_render/src/index.html 같은 URL로 접속 가능
 
