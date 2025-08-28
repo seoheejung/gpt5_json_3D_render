@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>JSON → 3D 이미지 생성기</title>
+<style>
+  :root{ --bg:#0e1117; --panel:#111827; --sub:#0b1220; --text:#e5e7eb; --muted:#94a3b8; --brand:#1B2C7A; }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:ui-sans-serif,system-ui,"Apple SD Gothic Neo","Noto Sans KR",Roboto,Segoe UI,Arial}
+  header{display:flex; gap:12px; align-items:center; padding:12px 16px; border-bottom:1px solid #111; background:linear-gradient(180deg,var(--panel),var(--sub)); flex-wrap:wrap}
+  header h1{font-size:16px; margin:0; letter-spacing:.2px}
+  header .right{margin-left:auto; display:flex; gap:8px; flex-wrap:wrap}
+  button{background:#222b; border:1px solid #333; color:var(--text); padding:8px 10px; border-radius:8px; cursor:pointer}
+  button:hover{border-color:#555}
+  main{display:grid; grid-template-columns:minmax(320px,520px) 1fr; height:calc(100% - 54px)}
+  .left{display:flex; flex-direction:column; border-right:1px solid #111; background:var(--panel); min-width:0}
+  .toolbar{display:flex; gap:8px; padding:10px; border-bottom:1px solid #111; flex-wrap:wrap}
+  .editor{flex:1; position:relative; min-height:0}
+  textarea{position:absolute; inset:0; width:100%; height:100%; background:#0a0f18; color:#dbe2f1; border:0; padding:14px; font:13px/1.5 ui-monospace,Consolas,Menlo,monospace}
+  .status{padding:8px 12px; color:#eab308; border-top:1px solid #111; background:#0a0f18}
+  .status.ok{color:#10b981}
+  .rightpane{position:relative; background:#000; min-width:0; min-height:0}
+  canvas{display:block; width:100%; height:100%}
+  .floating{position:absolute; top:10px; right:10px; display:flex; gap:6px; z-index:2}
+  .badge{font-size:12px; color:#cbd5e1; opacity:.9}
+  .file{display:inline-flex; align-items:center; gap:6px}
+  input[type="file"]{display:none}
+  label[for=fileInput]{background:#222b; border:1px solid #333; padding:8px 10px; border-radius:8px; cursor:pointer}
+  .help{color:var(--muted); margin: auto}
+  .tip{display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; background:#1f2937; color:#cbd5e1; font-size:11px; margin-left:6px; cursor:help}
+  .tip:hover{background:#293241}
+  .hidden{display:none}
+  .modal{position:fixed; inset:0; background:#0008; display:flex; align-items:center; justify-content:center; z-index:50}
+  .modal.hidden{display:none !important;}
+  .dialog{background:#0b0f16; border:1px solid #222; border-radius:12px; width:min(720px,92vw); padding:16px; box-shadow:0 10px 30px #0006}
+  .dialog h3{margin:0 0 8px 0; font-size:16px}
+  .dialog textarea{height:220px}
+  .dialog .row{display:flex; gap:8px; justify-content:flex-end; margin-top:10px}
+  .dialog button{background:#1f2937}
+  @media (max-width: 900px){
+    main{ grid-template-columns: 1fr; grid-template-rows: 48vh 52vh; }
+    header{gap:8px}
+    header .right{width:100%; justify-content:flex-start}
+  }
+  @media (max-width: 480px){
+    header h1{font-size:14px}
+    button{padding:6px 8px}
+    .toolbar{gap:6px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>JSON → 3D 이미지 생성기 </h1>
+  <div class="right">
+    <span class="help">Ctrl/Cmd+Enter: 렌더</span>
+    <div class="file">
+      <input id="fileInput" type="file" accept="application/json" />
+      <label for="fileInput">JSON 불러오기</label>
+    </div>
+    <button id="btnSample1">샘플(랜덤)</button>
+    <button id="btnSample2">샘플(태양계)</button>
+    <button id="btnResetCam">카메라 리셋</button>
+    <button id="btnPNG">PNG 저장</button>
+    <button id="btnGLB">GLB 저장</button>
+  </div>
+</header>
+
+<main>
+  <section class="left">
+    <div class="toolbar">
+      <button id="btnRender" style="background:linear-gradient(180deg,#1B2C7A,#153066)">렌더</button>
+      <label><input type="checkbox" id="chkAxes" checked> 축</label>
+      <label><input type="checkbox" id="chkGrid" checked> 격자</label>
+      <button id="btnHelp">JSON 도움말</button>
+      <button id="btnConvert">배열→스펙 변환</button>
+    </div>
+
+    <details id="helpBox" class="helpbox" style="margin:8px 10px 0 10px; background:#0a0f18; border:1px solid #111; border-radius:8px; padding:12px;">
+      <summary style="cursor:pointer;color:#e2e8f0;font-weight:600">JSON 스펙 — 쉬운 요약 & 예시 보기 <span class="tip" title="기본 구조와 자주 쓰는 속성을 간단히 정리했어요. 예시를 복사해 붙여넣어 바로 렌더도 가능!">i</span></summary>
+      <div style="color:#cbd5e1; font-size:13px; line-height:1.6; margin-top:10px">
+        <h4 style="margin:6px 0 6px; font-size:13px; color:#93c5fd">1) 구조 개요</h4>
+        <p style="margin:0 0 8px">렌더러는 <b>장면 설정</b>과 <b>오브젝트 목록</b>으로 구성돼요.</p>
+        <ul style="margin:0 0 10px 16px; padding:0">
+          <li><code>background</code> (string)</li>
+          <li><code>axes</code> (bool)</li>
+          <li><code>grid</code> (bool)</li>
+          <li><code>camera</code> (object)</li>
+          <li><code>lights</code> (array)</li>
+          <li><code>objects</code> (array)</li>
+        </ul>
+        <h4 style="margin:6px 0 6px; font-size:13px; color:#93c5fd">2) 오브젝트 공통</h4>
+        <ul style="margin:0 0 10px 16px; padding:0">
+          <li><code>type</code>: "box"|"sphere"|"cylinder"|"cone"|"torus"|"plane"</li>
+          <li>변환: <code>position</code>, <code>rotationDeg</code>, <code>scale</code></li>
+          <li><code>material</code>: 색/질감/투명도 등</li>
+          <li><code>children</code>, <code>animation</code></li>
+        </ul>
+        <h4 style="margin:6px 0 6px; font-size:13px; color:#93c5fd">3) 최소 예시</h4>
+<pre style="white-space:pre; overflow:auto; background:#050911; padding:10px; border-radius:6px; margin:0 0 10px">{
+  "background": "#0b0f16",
+  "camera": { "pos": [6,4,8], "target": [0,0,0], "fov": 55 },
+  "lights": [
+    { "type": "ambient", "intensity": 0.6, "color": "#fff" },
+    { "type": "directional", "intensity": 0.9, "color": "#fff", "pos": [5,10,7] }
+  ],
+  "objects": [
+    { "type": "box", "size": [1,1,1], "position": [-1.5,0,0], "material": { "color": "#f00" } },
+    { "type": "sphere", "radius": 0.75, "position": [1.5,0,0], "material": { "color": "#00f" } }
+  ]
+}</pre>
+      </div>
+    </details>
+    <div id="status" class="status">대기 중…</div>
+    <div class="editor"><textarea id="jsonInput"></textarea></div>
+  </section>
+
+  <section class="rightpane">
+    <!-- 변환 모달 -->
+    <div id="convertModal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="dialog">
+        <h3>배열 스키마 → 뷰어 스펙 변환</h3>
+        <p style="margin-top:0;color:#cbd5e1">아래에 <b>[ ... ]</b> 형태의 배열 JSON을 붙여넣으면, 좌측 에디터용 스펙으로 변환합니다.</p>
+        <textarea id="convertInput" placeholder='[
+  { "shape":"cube","size":{"width":1,"height":1,"depth":1},"color":"#f00","position":{"x":-1.5,"y":0,"z":0} },
+  { "shape":"sphere","size":{"radius":0.75},"color":"#00f","position":{"x":1.5,"y":0,"z":0} }
+]'></textarea>
+        <div class="row">
+          <button id="btnCloseModal" type="button">닫기</button>
+          <button id="btnRunConvert" type="button" style="background:#1B2C7A">변환 실행</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="floating"><span class="badge">드래그 회전 · 휠 줌 · 우클릭 이동</span></div>
+    <canvas id="view"></canvas>
+  </section>
+</main>
+
+<!-- UMD 안정 조합(r137.5) -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.137.5/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.137.5/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.137.5/examples/js/exporters/GLTFExporter.js"></script>
+
+<script>
+(function(){
+  /* ========== 예시 JSON(랜덤 풀) ========== */
+  const examplePool = [
+    {
+      background:"#0b0f16",
+      camera:{pos:[6,4,8], target:[0,0,0], fov:55},
+      lights:[
+        {type:"ambient", intensity:0.6, color:"#ffffff"},
+        {type:"directional", intensity:0.9, color:"#ffffff", pos:[5,10,7]}
+      ],
+      objects:[
+        {type:"box", size:[1.2,1.2,1.2], position:[-1.6,0.6,0], material:{color:"#f97316"}},
+        {type:"sphere", radius:0.8, position:[1.8,0.8,0], material:{color:"#22d3ee"}, animation:{spin:{axis:[0,1,0], speed:1}}},
+        {type:"plane", width:10, height:10, autoRotateToFloor:true, material:{color:"#1f2937", roughness:1}}
+      ]
+    },
+  {
+    background:"#02060e",
+    camera:{pos:[10,6,16], target:[0,0,0], fov:60},
+    lights:[
+      {type:"ambient", intensity:0.45, color:"#ffffff"},
+      {type:"directional", intensity:1.1, color:"#ffe7c0", pos:[9,10,7]}
+    ],
+    objects:[
+      /* 태양 */
+      {type:"sphere", name:"sun", radius:1.2, position:[0,1.2,0], material:{color:"#ffaa00"}},
+
+      /* 궤도 표시(바닥에 눕힌 토러스 링들) */
+      {type:"torus", radius:2.0,  tube:0.02, position:[0,0,0], rotationDeg:[90,0,0], material:{color:"#1e293b"}},
+      {type:"torus", radius:2.8,  tube:0.02, position:[0,0,0], rotationDeg:[90,0,0], material:{color:"#1e293b"}},
+      {type:"torus", radius:3.5,  tube:0.02, position:[0,0,0], rotationDeg:[90,0,0], material:{color:"#1e293b"}},
+      {type:"torus", radius:4.2,  tube:0.02, position:[0,0,0], rotationDeg:[90,0,0], material:{color:"#1e293b"}},
+      {type:"torus", radius:5.5,  tube:0.025, position:[0,0,0], rotationDeg:[90,0,0], material:{color:"#1e293b"}},
+      {type:"torus", radius:7.0,  tube:0.025, position:[0,0,0], rotationDeg:[90,0,0], material:{color:"#1e293b"}},
+      {type:"torus", radius:8.5,  tube:0.025, position:[0,0,0], rotationDeg:[90,0,0], material:{color:"#1e293b"}},
+      {type:"torus", radius:10.0, tube:0.03,  position:[0,0,0], rotationDeg:[90,0,0], material:{color:"#1e293b"}},
+      {type:"torus", radius:11.5, tube:0.03,  position:[0,0,0], rotationDeg:[90,0,0], material:{color:"#1e293b"}},
+
+      /* 공전 그룹: 그룹 자체에 spin 애니메이션 → 자식 행성이 공전 */
+      {name:"orbit_mercury", animation:{spin:{axis:[0,1,0], speed:2.4}},
+        children:[
+          {type:"sphere", name:"수성", radius:0.12, position:[2.0,0.12,0], material:{color:"#9ca3af"}}
+        ]},
+      {name:"orbit_venus", animation:{spin:{axis:[0,1,0], speed:1.8}},
+        children:[
+          {type:"sphere", name:"금성", radius:0.15, position:[2.8,0.15,0], material:{color:"#f59e0b"}}
+        ]},
+      {name:"orbit_earth", animation:{spin:{axis:[0,1,0], speed:1.4}},
+        children:[
+          {type:"sphere", name:"지구", radius:0.16, position:[3.5,0.16,0], material:{color:"#3b82f6"}},
+          /* 간단 달 */
+          {type:"sphere", name:"moon", radius:0.05, position:[3.5+0.35,0.16,0], material:{color:"#cbd5e1"}}
+        ]},
+      {name:"orbit_mars", animation:{spin:{axis:[0,1,0], speed:1.1}},
+        children:[
+          {type:"sphere", name:"화성", radius:0.14, position:[4.2,0.14,0], material:{color:"#ef4444"}}
+        ]},
+      {name:"orbit_jupiter", animation:{spin:{axis:[0,1,0], speed:0.6}},
+        children:[
+          {type:"sphere", name:"목성", radius:0.50, position:[5.5,0.50,0], material:{color:"#fbbf24"}}
+        ]},
+      {name:"orbit_saturn", animation:{spin:{axis:[0,1,0], speed:0.5}},
+        children:[
+          {type:"sphere", name:"토성", radius:0.45, position:[7.0,0.45,0], material:{color:"#fde68a"},
+            children:[
+              /* 토성 고리: 행성 로컬 좌표에 눕혀서 부착 */
+              {type:"torus", radius:0.7, tube:0.05, rotationDeg:[90,0,0], material:{color:"#eab308"}}
+            ]
+          }
+        ]},
+      {name:"orbit_uranus", animation:{spin:{axis:[0,1,0], speed:0.35}},
+        children:[
+          {type:"sphere", name:"천왕성", radius:0.30, position:[8.5,0.30,0], material:{color:"#67e8f9"}}
+        ]},
+      {name:"orbit_neptune", animation:{spin:{axis:[0,1,0], speed:0.30}},
+        children:[
+          {type:"sphere", name:"해왕성", radius:0.30, position:[10.0,0.30,0], material:{color:"#60a5fa"}}
+        ]},
+      {name:"orbit_pluto", animation:{spin:{axis:[0,1,0], speed:0.25}},
+        children:[
+          {type:"sphere", name:"명왕성", radius:0.10, position:[11.5,0.10,0], material:{color:"#d1d5db"}}
+        ]},
+
+      /* 바닥 */
+      {type:"plane", width:30, height:30, autoRotateToFloor:true, material:{color:"#0c1220", roughness:1}}
+    ]
+  },
+    {
+      background:"#0a0d14",
+      camera:{pos:[7,6,9], target:[0,1,0], fov:55},
+      lights:[
+        {type:"ambient", intensity:0.55, color:"#ffffff"},
+        {type:"directional", intensity:0.9, color:"#dbeafe", pos:[-6,9,5]}
+      ],
+      objects:[
+        {type:"plane", width:16, height:16, autoRotateToFloor:true, material:{color:"#0f172a", roughness:1}},
+        {type:"cylinder", radiusTop:0.6, radiusBottom:0.6, height:2.2, position:[-2,1.1,-1], material:{color:"#60a5fa"}},
+        {type:"cylinder", radiusTop:0.5, radiusBottom:0.5, height:3.4, position:[0,1.7,1.5], material:{color:"#a78bfa"}},
+        {type:"cylinder", radiusTop:0.7, radiusBottom:0.7, height:1.6, position:[2,0.8,-0.5], material:{color:"#34d399"}},
+        {type:"sphere", radius:0.5, position:[0,3.4,1.5], material:{color:"#fde047"}, animation:{spin:{axis:[1,1,0], speed:0.8}}}
+      ]
+    },
+    {
+      background:"#0b0f16",
+      camera:{pos:[6,5,10], target:[0,1,0], fov:58},
+      lights:[
+        {type:"ambient", intensity:0.5, color:"#ffffff"},
+        {type:"directional", intensity:1.0, color:"#fff7ed", pos:[6,9,6]}
+      ],
+      objects:[
+        {type:"plane", width:18, height:18, autoRotateToFloor:true, material:{color:"#0e1726", roughness:1}},
+        {type:"box", size:[0.6,2.4,0.6], position:[-1.8,1.2,0], material:{color:"#38bdf8"}},
+        {type:"box", size:[0.6,2.4,0.6], position:[ 1.8,1.2,0], material:{color:"#38bdf8"}},
+        {type:"box", size:[3.0,0.6,0.6], position:[ 0,2.4,0], material:{color:"#38bdf8"}},
+        {type:"torus", radius:1.2, tube:0.08, position:[0,1.2,-2], material:{color:"#f472b6"},
+          children:[{type:"sphere", radius:0.25, position:[1.2,0,0], material:{color:"#fca5a5"}}],
+          animation:{spin:{axis:[0,1,0], speed:1}}
+        }
+      ]
+    },
+    {
+      background:"#0b1321",
+      camera:{pos:[8,6,10], target:[0,0.8,0], fov:55},
+      lights:[
+        {type:"ambient", intensity:0.6, color:"#ffffff"},
+        {type:"directional", intensity:0.9, color:"#e5e7eb", pos:[-5,10,5]}
+      ],
+      objects:[
+        {type:"plane", width:20, height:20, autoRotateToFloor:true, material:{color:"#111827", roughness:1}},
+        {type:"sphere", radius:0.35, position:[-2,0.35,-2], material:{color:"#60a5fa"}},
+        {type:"sphere", radius:0.45, position:[-1,0.45,-1], material:{color:"#93c5fd"}},
+        {type:"sphere", radius:0.4,  position:[ 0,0.40, 0], material:{color:"#c084fc"}},
+        {type:"sphere", radius:0.45, position:[ 1,0.45, 1], material:{color:"#a78bfa"}},
+        {type:"sphere", radius:0.35, position:[ 2,0.35, 2], material:{color:"#22d3ee"}},
+        {type:"sphere", radius:0.35, position:[-2,0.35, 2], material:{color:"#34d399"}},
+        {type:"sphere", radius:0.45, position:[-1,0.45, 1], material:{color:"#4ade80"}},
+        {type:"sphere", radius:0.45, position:[ 1,0.45,-1], material:{color:"#f59e0b"}},
+        {type:"sphere", radius:0.35, position:[ 2,0.35,-2], material:{color:"#f97316"}}
+      ]
+    },
+    {
+      background:"#061018",
+      camera:{pos:[7,5,9], target:[0,0,0], fov:58},
+      lights:[
+        {type:"ambient", intensity:0.55, color:"#ffffff"},
+        {type:"directional", intensity:0.9, color:"#ffe4a3", pos:[6,9,7]}
+      ],
+      objects:[
+        {type:"plane", width:22, height:22, autoRotateToFloor:true, material:{color:"#0b1220", roughness:1}},
+        ...[-3,-1,1,3].flatMap(x=>[
+          {type:"cylinder", radiusTop:0.12, radiusBottom:0.12, height:0.6, position:[x,0.3,-2], material:{color:"#8b5cf6"}},
+          {type:"cone", radius:0.6, height:1.2, position:[x,1.2,-2], material:{color:"#22c55e"}}
+        ]),
+        {type:"torus", radius:1.0, tube:0.05, position:[0,1.4,2], material:{color:"#38bdf8"}, animation:{spin:{axis:[0,1,0], speed:1.1}}}
+      ]
+    }
+  ];
+
+  /* ========== AutoFix 유틸 ========== */
+  const isNum = (v)=> typeof v==='number' && isFinite(v);
+  const arr3 = (a, def=0)=> Array.isArray(a) && a.length===3 ? a.map(n=>+n||0) : [a?.x??def, a?.y??def, a?.z??def].map(n=>+n||0);
+  const toHex = (c)=> typeof c==='string' && /^([0-9a-f]{3}|[0-9a-f]{6})$/i.test(c) ? '#'+c : c;
+  const numFromUnit = (v)=>{
+    if (typeof v==='number') return v;
+    if (typeof v!=='string') return undefined;
+    const s=v.trim().toLowerCase();
+    const m = parseFloat(s);
+    if (s.endsWith('mm')) return m/1000;
+    if (s.endsWith('cm')) return m/100;
+    if (s.endsWith('m'))  return m;
+    if (s.endsWith('deg')) return m;
+    if (s.endsWith('rad')) return m*(180/Math.PI);
+    if (/^[+-]?\d+(\.\d+)?$/.test(s)) return parseFloat(s);
+    return undefined;
+  };
+  function fixRotationDeg(src){
+    if (Array.isArray(src?.rotationDeg)) return src.rotationDeg;
+    let r = src?.rotationDeg || src?.rotation || src?.rot;
+    if (!r) return undefined;
+    if (Array.isArray(r)){
+      const vals = r.map(v=> numFromUnit(v));
+      const hasUnit = r.some(v=> typeof v==='string' && /(deg|rad)$/i.test(v));
+      const big = vals.some(v=> Math.abs(v)>6.3);
+      return hasUnit ? vals : (big ? vals : vals.map(v=> v*(180/Math.PI)));
+    }
+    return undefined;
+  }
+  const mapTypeName = (t)=>({cube:'box', box:'box', sphere:'sphere', cone:'cone', cylinder:'cylinder', torus:'torus', plane:'plane'})[(t||'').toLowerCase()]||t;
+  function fixMaterial(m={}){
+    const out={...m};
+    if (out.colour && !out.color) { out.color = out.colour; delete out.colour; }
+    if (typeof out.color==='string') out.color = toHex(out.color);
+    if (typeof out.opacity==='string') { const n=numFromUnit(out.opacity); if (isNum(n)) out.opacity = n; }
+    return out;
+  }
+  function sizeFrom(n){
+    const s=n.size||{};
+    const pick=(v,def)=> isNum(v)?v: numFromUnit(v) ?? def;
+    return {
+      w: pick(s.width, s.w ?? n.width ?? 1),
+      h: pick(s.height, s.h ?? n.height ?? 1),
+      d: pick(s.depth, s.d ?? n.depth ?? 1),
+      r: pick(s.radius, n.radius ?? 0.5),
+      rt: pick(s.radiusTop, n.radiusTop ?? n.radius ?? 0.5),
+      rb: pick(s.radiusBottom, n.radiusBottom ?? n.radius ?? 0.5),
+      tube: pick(s.tube, n.tube ?? 0.2),
+      tseg: pick(s.tubularSegments, n.tubularSegments ?? 16),
+      rseg: pick(s.radialSegments, n.radialSegments ?? 32)
+    };
+  }
+  function normalizeNode(n){
+    const node={...n};
+    if (node.shape && !node.type) node.type=node.shape;
+    node.type = mapTypeName(node.type);
+    if (node.colour && !node.color) node.color=node.colour;
+    if (node.material) node.material = fixMaterial(node.material); else if (node.color) node.material={color:node.color};
+    const pos = arr3(node.position, 0);
+    const rot = fixRotationDeg(node);
+    let scale = node.scale;
+    if (typeof scale==='number') scale=[scale,scale,scale];
+    else if (!Array.isArray(scale)) scale=arr3(scale, 1);
+    const s=sizeFrom(node);
+
+    const out={ type: node.type, position: pos, rotationDeg: rot, scale, material: node.material };
+    switch(node.type){
+      case 'box': Object.assign(out,{size:[s.w,s.h,s.d]}); break;
+      case 'sphere': Object.assign(out,{radius:s.r, widthSegments: node.widthSegments??32, heightSegments: node.heightSegments??16}); break;
+      case 'cylinder': Object.assign(out,{radiusTop:s.rt, radiusBottom:s.rb, height:s.h, radialSegments: node.radialSegments??32}); break;
+      case 'cone': Object.assign(out,{radius:s.r, height:s.h, radialSegments: node.radialSegments??32}); break;
+      case 'torus': Object.assign(out,{radius:s.r, tube:s.tube, tubularSegments: s.tseg, radialSegments: node.radialSegments??64}); break;
+      case 'plane': Object.assign(out,{width:s.w, height:s.h, autoRotateToFloor: !!node.autoRotateToFloor}); break;
+    }
+    if (node.children) out.children = (Array.isArray(node.children)?node.children:[]).map(normalizeNode);
+    if (node.animation?.spin) out.animation = { spin: { axis: arr3(node.animation.spin.axis, 0), speed: +node.animation.spin.speed||0 }};
+    return out;
+  }
+  function autoFixSpec(cfg){
+    let changes=0;
+    const src = typeof cfg==='object'? JSON.parse(JSON.stringify(cfg)) : {};
+    const out={...src};
+
+    if (out.colour && !out.background) { out.background=toHex(out.colour); delete out.colour; changes++; }
+    if (typeof out.background==='string') { const fixed=toHex(out.background); if (fixed!==out.background){out.background=fixed; changes++;} }
+
+    const lights = out.lights || out.light;
+    if (Array.isArray(lights)){
+      out.lights = lights.map(l=>{
+        const o={...l};
+        if (o.colour && !o.color){ o.color=o.colour; delete o.colour; changes++; }
+        if (o.position && !o.pos){ o.pos = arr3(o.position,0); delete o.position; changes++; }
+        if (typeof o.color==='string') o.color = toHex(o.color);
+        return o;
+      });
+      if (out.light && !out.lights) delete out.light;
+    }
+
+    if (out.camera){
+      const c={...out.camera};
+      if (!c.pos) c.pos = arr3(c.position ?? c.location ?? c.pos ?? [6,4,8]);
+      if (!c.target) c.target = arr3(c.lookAt ?? c.target ?? [0,0,0]);
+      if (c.fovDegrees && !c.fov) { c.fov = +c.fovDegrees||55; delete c.fovDegrees; changes++; }
+      if (typeof c.fov==='string'){ const n=numFromUnit(c.fov); if (isNum(n)){ c.fov=n; changes++; }}
+      out.camera=c;
+    }
+
+    if (Array.isArray(out.objects)){
+      out.objects = out.objects.map(normalizeNode);
+    } else if (Array.isArray(out)){
+      out.objects = out.map(normalizeNode); changes++;
+    }
+    return {spec: out, changes};
+  }
+
+  const el = (id) => document.getElementById(id);
+  const ta = el('jsonInput');
+  const statusEl = el('status');
+  const canvas = el('view');
+
+  let renderer, scene, camera, controls, root, axesHelper, gridHelper;
+  const defaultCamPos = new THREE.Vector3(6, 4, 8);
+  const animations = new Map();
+  let sceneLights = []; // ✅ 스펙 라이트 추적용
+
+  init3D();
+  ta.value = JSON.stringify(examplePool[0], null, 2);
+  renderFromTextarea();
+  bindUI();
+
+  function init3D(){
+    if (!window.THREE || !THREE.OrbitControls) {
+      alert('THREE 또는 OrbitControls 로드 실패. 네트워크/스크립트 경로 확인 필요.');
+      return;
+    }
+    renderer = new THREE.WebGLRenderer({canvas, antialias:true, preserveDrawingBuffer:true});
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color('#0b0f16');
+
+    camera = new THREE.PerspectiveCamera(55, 1, 0.1, 2000);
+    camera.position.copy(defaultCamPos);
+    camera.lookAt(0,0,0);
+
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.07;
+    controls.target.set(0,0,0);
+
+    root = new THREE.Group();
+    scene.add(root);
+
+    axesHelper = new THREE.AxesHelper(2);
+    gridHelper = new THREE.GridHelper(20, 20, 0x333333, 0x222222);
+    scene.add(axesHelper, gridHelper);
+
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x202020, 0.6);
+    scene.add(hemi);
+
+    resize();
+    window.addEventListener('resize', resize);
+    animate();
+  }
+
+  function resize(){
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width || window.innerWidth;
+    const h = rect.height || Math.max(300, window.innerHeight * 0.5);
+    if (renderer) renderer.setSize(w, h, false);
+    if (!camera) return;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+
+  function animate(){
+    requestAnimationFrame(animate);
+    animations.forEach((cfg, obj)=>{
+      if (cfg.spin){
+        const ax = cfg.spin.axis || [0,1,0];
+        const speed = cfg.spin.speed ?? 0.5;
+        obj.rotateX(ax[0]*speed*0.01);
+        obj.rotateY(ax[1]*speed*0.01);
+        obj.rotateZ(ax[2]*speed*0.01);
+      }
+    });
+    controls.update();
+    renderer.render(scene, camera);
+  }
+
+  function bindUI(){
+    el('btnRender').onclick = renderFromTextarea;
+    el('btnResetCam').onclick = ()=>{
+      camera.position.copy(defaultCamPos);
+      controls.target.set(0,0,0);
+      controls.update();
+    };
+    el('btnPNG').onclick = downloadPNG;
+    el('btnGLB').onclick = downloadGLB;
+
+    // 샘플 버튼 2종: 기본=랜덤, 태양계=고정
+    el('btnSample1').onclick = ()=>{ 
+      const pick = examplePool[Math.floor(Math.random() * examplePool.length)];
+      ta.value = JSON.stringify(pick, null, 2);
+      renderFromTextarea();
+    };
+    el('btnSample2').onclick = ()=>{ 
+      ta.value = JSON.stringify(examplePool[1], null, 2); 
+      renderFromTextarea(); 
+    };
+
+    el('chkAxes').onchange = (e)=> axesHelper.visible = !!e.target.checked;
+    el('chkGrid').onchange = (e)=> gridHelper.visible = !!e.target.checked;
+
+    const help = el('helpBox');
+    const btnHelp = el('btnHelp');
+    if (btnHelp && help){ btnHelp.onclick = ()=> help.open = !help.open; }
+
+    const modal = el('convertModal');
+    const btnConvert = el('btnConvert');
+    const btnRunConvert = el('btnRunConvert');
+    const btnCloseModal = el('btnCloseModal');
+
+    if (btnConvert && modal) btnConvert.onclick = ()=> modal.classList.remove('hidden');
+    if (btnCloseModal && modal) btnCloseModal.onclick = ()=> modal.classList.add('hidden');
+    if (btnRunConvert) btnRunConvert.onclick = runConvert;
+
+    const defaultConvertExample = `[
+  { "shape": "cube", "size": { "width": 1, "height": 1, "depth": 1 }, "color": "#f00", "position": { "x": -1.5, "y": 0, "z": 0 } },
+  { "shape": "sphere", "size": { "radius": 0.75 }, "color": "#00f", "position": { "x": 1.5, "y": 0, "z": 0 } }
+]`;
+    const convertInputEl = document.getElementById('convertInput');
+    if (convertInputEl) convertInputEl.value = defaultConvertExample;
+
+    if (modal) modal.addEventListener('click', (e)=>{ if(e.target===modal) modal.classList.add('hidden'); });
+    document.addEventListener('keydown', (e)=>{ if (e.key==='Escape') modal.classList.add('hidden'); });
+
+    document.addEventListener('keydown', (e)=>{
+      if ((e.ctrlKey||e.metaKey) && e.key === 'Enter') renderFromTextarea();
+    });
+
+    el('fileInput').addEventListener('change', async (e)=>{
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      ta.value = text;
+      renderFromTextarea();
+      e.target.value = '';
+    });
+  }
+
+  // 배열 스키마 → 뷰어 스펙 변환기
+  function toViewerSpec(arr){
+    const mapType = (s)=>({cube:'box', box:'box', sphere:'sphere', cone:'cone', cylinder:'cylinder', torus:'torus', plane:'plane'})[(s||'').toLowerCase()]||s;
+    const pickPos = (p)=> Array.isArray(p)? p : [p?.x||0, p?.y||0, p?.z||0];
+    const obj =(n)=>{
+      const t = mapType(n.shape||n.type);
+      const base = { type:t, position:pickPos(n.position), material:{ color: n.color || '#cccccc' } };
+      switch(t){
+        case 'box': base.size=[ n.size?.width||1, n.size?.height||1, n.size?.depth||1 ]; break;
+        case 'sphere': base.radius = n.size?.radius ?? n.radius ?? 0.5; break;
+        case 'cone': base.radius = n.size?.radius ?? n.radius ?? 0.5; base.height = n.size?.height ?? n.height ?? 1; break;
+        case 'cylinder': base.radiusTop = n.size?.radiusTop ?? n.radiusTop ?? 0.5; base.radiusBottom = n.size?.radiusBottom ?? n.radiusBottom ?? base.radiusTop; base.height = n.size?.height ?? n.height ?? 1; break;
+        case 'torus': base.radius = n.size?.radius ?? n.radius ?? 0.6; base.tube = n.size?.tube ?? n.tube ?? 0.2; break;
+        case 'plane': base.width = n.size?.width ?? n.width ?? 1; base.height = n.size?.height ?? n.height ?? 1; break;
+      }
+      return base;
+    };
+    return {
+      background:'#0b0f16', axes:true, grid:true,
+      camera:{pos:[6,4,8], target:[0,0,0], fov:55},
+      lights:[ {type:'ambient', intensity:0.6, color:'#ffffff'}, {type:'directional', intensity:0.9, color:'#ffffff', pos:[5,10,7]} ],
+      objects: (arr||[]).map(obj)
+    };
+  }
+
+  // 친절한 에러/검증 포함 변환
+  function runConvert(){
+    const modal = document.getElementById('convertModal');
+    const input = document.getElementById('convertInput');
+    let raw = (input?.value ?? '').trim();
+
+    if (!raw) {
+      alert('⚠️ 입력이 비었습니다.\n\n예: [ { "shape":"cube" }, { "shape":"sphere" } ]');
+      return;
+    }
+
+    raw = raw.replace(/^\uFEFF/, '');
+
+    if (!raw.startsWith('[') || !raw.endsWith(']')) {
+      alert('⚠️ 최상위는 반드시 배열이어야 합니다.\n\n예: [ { ... }, { ... } ]');
+      return;
+    }
+
+    try {
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) {
+        alert('⚠️ 배열이 아닙니다. [ ... ] 로 감싸주세요.');
+        return;
+      }
+      const converted = toViewerSpec(arr);
+      document.getElementById('jsonInput').value = JSON.stringify(converted, null, 2);
+      modal.classList.add('hidden');
+      renderFromTextarea();
+      showStatus('변환 완료 ✅', true);
+    } catch (err) {
+      alert(
+        '⚠️ JSON 해석 실패: ' + err.message +
+        '\n\n확인해 보세요:\n' +
+        '• 닫는 괄호 ] 또는 } 가 빠졌나요?\n' +
+        '• 마지막 요소 뒤에 쉼표(,)를 붙이지 않았나요?\n' +
+        '• 키와 문자열은 큰따옴표(")인가요?\n' +
+        '• 개행/공백 사이에 이상한 문자가 끼어있지 않나요?'
+      );
+    }
+  }
+
+  // Core: JSON → Scene (AutoFix 포함)
+  function renderFromTextarea(){
+    let json;
+    try{ json = JSON.parse(ta.value); }
+    catch(err){ showStatus('JSON 파싱 오류: ' + err.message, false); return; }
+
+    const {spec, changes} = autoFixSpec(json);
+    if (changes>0){ ta.value = JSON.stringify(spec, null, 2); }
+
+    try{
+      applyScene(spec);
+      showStatus((changes>0?`자동 교정 ${changes}건 → `:'' ) + '렌더 성공 ✅', true);
+    }catch(err){
+      console.error(err);
+      showStatus('렌더 오류: ' + err.message, false);
+    }
+  }
+
+  function applyScene(cfg){
+    if (root) scene.remove(root);
+    root = new THREE.Group();
+    scene.add(root);
+    animations.clear();
+
+    // ✅ 이전에 추가된 스펙 라이트 제거 (누적 방지)
+    sceneLights.forEach(l => {
+      if (l.parent) l.parent.remove(l);
+      if (l.target && l.target.parent) l.target.parent.remove(l.target);
+    });
+    sceneLights.length = 0;
+
+    if (cfg.background) scene.background = new THREE.Color(cfg.background);
+
+    if (cfg.camera){
+      const {pos, target, fov} = cfg.camera;
+      if (Array.isArray(pos) && pos.length===3) camera.position.set(pos[0],pos[1],pos[2]);
+      if (typeof fov === 'number'){ camera.fov = fov; camera.updateProjectionMatrix(); }
+      if (Array.isArray(target) && target.length===3) controls.target.set(target[0],target[1],target[2]);
+      controls.update();
+    }
+
+    axesHelper.visible = (cfg.axes !== false);
+    gridHelper.visible = (cfg.grid !== false);
+
+    if (Array.isArray(cfg.lights)) cfg.lights.forEach(addLight);
+    if (Array.isArray(cfg.objects)) cfg.objects.forEach(o => root.add(buildObject(o)));
+  }
+
+  function addLight(lc){
+    const color = new THREE.Color(lc.color ?? '#ffffff');
+    const intensity = lc.intensity ?? 1.0;
+    let light;
+    switch((lc.type||'').toLowerCase()){
+      case 'ambient':
+        light = new THREE.AmbientLight(color, intensity); break;
+      case 'directional':
+        light = new THREE.DirectionalLight(color, intensity);
+        setPos(light, lc.pos);
+        if (lc.target){ const t = new THREE.Object3D(); setPos(t, lc.target); scene.add(t); light.target = t; }
+        break;
+      case 'point':
+        light = new THREE.PointLight(color, intensity, lc.distance ?? 0, lc.decay ?? 2);
+        setPos(light, lc.pos); break;
+      case 'spot':
+        light = new THREE.SpotLight(color, intensity, lc.distance ?? 0, lc.angle ?? Math.PI/6, lc.penumbra ?? 0.1, lc.decay ?? 2);
+        setPos(light, lc.pos);
+        if (lc.target){ const t = new THREE.Object3D(); setPos(t, lc.target); scene.add(t); light.target = t; }
+        break;
+      default: return;
+    }
+    scene.add(light);
+    sceneLights.push(light); // ✅ 추적
+  }
+
+  function buildObject(node){
+    const g = new THREE.Group();
+    g.name = node.name || node.type || 'object';
+    const obj = createMesh(node);
+    if (obj) g.add(obj);
+    setPos(g, node.position);
+    setRotDeg(g, node.rotationDeg);
+    setScale(g, node.scale);
+    if (node.animation) animations.set(g, node.animation);
+    if (Array.isArray(node.children)) node.children.forEach(c => g.add(buildObject(c)));
+    return g;
+  }
+
+  function createMesh(n){
+    const mat = makeMaterial(n.material);
+    const type = (n.type||'').toLowerCase();
+    let geo;
+    switch(type){
+      case 'box':
+      case 'cube':{ const s = n.size || [1,1,1]; geo = new THREE.BoxGeometry(s[0]??1, s[1]??1, s[2]??1); break; }
+      case 'sphere':{ const r = n.radius ?? 0.5; geo = new THREE.SphereGeometry(r, n.widthSegments??32, n.heightSegments??16); break; }
+      case 'cylinder':{ const rTop=n.radiusTop??0.5, rBot=n.radiusBottom??rTop, h=n.height??1; geo=new THREE.CylinderGeometry(rTop, rBot, h, n.radialSegments??32); break; }
+      case 'cone':{ const r=n.radius??0.5, h=n.height??1; geo=new THREE.ConeGeometry(r, h, n.radialSegments??32); break; }
+      case 'torus':{ const r=n.radius??0.6, t=n.tube??0.2; geo=new THREE.TorusGeometry(r, t, n.tubularSegments??16, n.radialSegments??64); break; }
+      case 'plane':{ const w=n.width??1, h=n.height??1; geo=new THREE.PlaneGeometry(w, h); break; }
+      default: return null;
+    }
+    const mesh = new THREE.Mesh(geo, mat);
+    if (n.receiveShadow) mesh.receiveShadow = true;
+    if (n.castShadow) mesh.castShadow = true;
+    if (type==='plane' && n.autoRotateToFloor) mesh.rotation.x = -Math.PI/2;
+    return mesh;
+  }
+
+  function makeMaterial(m={}){
+    const color = m.color ?? '#cccccc';
+    return new THREE.MeshStandardMaterial({
+      color: new THREE.Color(color),
+      metalness: m.metalness ?? 0.0,
+      roughness: m.roughness ?? 0.8,
+      transparent: !!m.transparent || (typeof m.opacity==='number' && m.opacity<1),
+      opacity: (typeof m.opacity==='number') ? m.opacity : 1.0,
+      wireframe: !!m.wireframe
+    });
+  }
+
+  function setPos(obj, arr){ if (Array.isArray(arr) && arr.length===3) obj.position.set(arr[0],arr[1],arr[2]); }
+  function setRotDeg(obj, arr){ if (Array.isArray(arr) && arr.length===3) obj.rotation.set(THREE.Math.degToRad(arr[0]), THREE.Math.degToRad(arr[1]), THREE.Math.degToRad(arr[2])); }
+  function setScale(obj, arr){ if (Array.isArray(arr) && arr.length===3) obj.scale.set(arr[0],arr[1],arr[2]); }
+
+  function downloadPNG(){
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = 'render.png';
+    a.click();
+  }
+  function downloadGLB(){
+    const exporter = new THREE.GLTFExporter();
+    exporter.parse(scene, (res)=>{
+      const blob = new Blob([res], {type:'model/gltf-binary'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'scene.glb';
+      a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href), 0);
+    }, {binary:true});
+  }
+
+  function showStatus(msg, ok){ statusEl.textContent = msg; statusEl.className = 'status ' + (ok?'ok':''); }
+})();
+</script>
+</body>
+</html>
