@@ -1,0 +1,55 @@
+{
+    "background": "#0b0f16",
+    "axes": true,
+    "grid": true,
+    "camera": { "pos": [8, 6, 12], "target": [0, 1, 0], "fov": "58deg" },
+    "lights": [
+        { "type": "ambient", "intensity": 0.55, "color": "#ffffff" },
+        { "type": "directional", "intensity": 0.9, "color": "#ffe7c0", "pos": [8, 10, 6], "target": [0, 0, 0] },
+        { "type": "spot", "intensity": 0.9, "color": "#9acbff", "pos": [-6, 9, -4], "target": [0, 0, 0], "angle": 0.6, "penumbra": 0.3 }
+    ],
+    "objects": [
+        { "type": "plane", "width": 26, "height": 26, "autoRotateToFloor": true, "material": { "color": "#0e1726", "roughness": 1 } },
+
+        { "type": "torus", "radius": 2.2, "tube": 0.08, "position": [0, 1.1, 0],
+        "material": { "color": "#38bdf8", "metalness": 0.5, "roughness": 0.4 },
+        "animation": { "spin": { "axis": [0, 1, 0], "speed": 1.1 } } },
+
+        { "type": "cylinder", "radiusTop": 0.5, "radiusBottom": 0.5, "height": 2.8, "position": [-3, 1.4, -2],
+        "material": { "color": "#a78bfa", "metalness": 0.2, "roughness": 0.6 } },
+        { "type": "sphere", "radius": 0.55, "position": [-3, 2.8, -2],
+        "material": { "color": "#c084fc", "metalness": 0.3, "roughness": 0.5 } },
+
+        { "type": "cylinder", "radiusTop": 0.45, "radiusBottom": 0.45, "height": 3.4, "position": [0, 1.7, 3],
+        "material": { "color": "#22d3ee", "metalness": 0.2, "roughness": 0.6 } },
+        { "type": "sphere", "radius": 0.5, "position": [0, 3.4, 3],
+        "material": { "color": "#67e8f9", "metalness": 0.3, "roughness": 0.5 } },
+
+        { "type": "cylinder", "radiusTop": 0.55, "radiusBottom": 0.55, "height": 2.2, "position": [3, 1.1, -0.5],
+        "material": { "color": "#34d399", "metalness": 0.2, "roughness": 0.6 } },
+        { "type": "sphere", "radius": 0.5, "position": [3, 2.2, -0.5],
+        "material": { "color": "#4ade80", "metalness": 0.25, "roughness": 0.5 } },
+
+        { "type": "sphere", "radius": 1.0, "position": [0, 1.2, 0],
+        "material": { "color": "#60a5fa", "metalness": 0.1, "roughness": 0.2, "transparent": true, "opacity": 0.35, "wireframe": false } },
+
+        { "name": "orbit_group",
+        "animation": { "spin": { "axis": [0, 1, 0], "speed": 1.2 } },
+        "children": [
+            { "type": "sphere", "radius": 0.22, "position": [1.8, 1.2, 0],
+            "material": { "color": "#f59e0b", "metalness": 0.2, "roughness": 0.5 } }
+        ]
+        },
+
+        { "type": "box", "size": [0.4, 2.4, 0.4], "position": [-1.4, 1.2, 1.4],
+        "material": { "color": "#38bdf8" } },
+        { "type": "box", "size": [0.4, 2.4, 0.4], "position": [ 1.4, 1.2, 1.4],
+        "material": { "color": "#38bdf8" } },
+        { "type": "box", "size": [2.8, 0.4, 0.4], "position": [0, 2.4, 1.4],
+        "material": { "color": "#38bdf8" } },
+
+        { "type": "torus", "radius": 1.0, "tube": 0.06, "position": [0, 0.2, -2.6],
+        "material": { "color": "#f472b6", "metalness": 0.4, "roughness": 0.4 },
+        "animation": { "spin": { "axis": [0, 1, 0], "speed": 0.9 } } }
+    ]
+}

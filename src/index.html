@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="google-site-verification" content="9L7inewOMr6Jlrkv6tBnwUzDsDtm4xhh_nLVWRp_zk4" />
 <title>JSON → 3D 이미지 생성기</title>
 <style>
   :root{ --bg:#0e1117; --panel:#111827; --sub:#0b1220; --text:#e5e7eb; --muted:#94a3b8; --brand:#1B2C7A; }
   *{box-sizing:border-box}
-  html,body{height:100%}
+  html,body{height:100%; overflow: auto; scrollbar-width: none;}
   body{margin:0; background:var(--bg); color:var(--text); font-family:ui-sans-serif,system-ui,"Apple SD Gothic Neo","Noto Sans KR",Roboto,Segoe UI,Arial}
   header{display:flex; gap:12px; align-items:center; padding:12px 16px; border-bottom:1px solid #111; background:linear-gradient(180deg,var(--panel),var(--sub)); flex-wrap:wrap}
   header h1{font-size:16px; margin:0; letter-spacing:.2px}
@@ -18,7 +19,16 @@
   .left{display:flex; flex-direction:column; border-right:1px solid #111; background:var(--panel); min-width:0}
   .toolbar{display:flex; gap:8px; padding:10px; border-bottom:1px solid #111; flex-wrap:wrap}
   .editor{flex:1; position:relative; min-height:0}
-  textarea{position:absolute; inset:0; width:100%; height:100%; background:#0a0f18; color:#dbe2f1; border:0; padding:14px; font:13px/1.5 ui-monospace,Consolas,Menlo,monospace}
+  textarea{position:absolute;inset:0;width:100%;height:100%;background:#0a0f18;color:#dbe2f1;border:0;padding:14px;font:13px/1.5 ui-monospace,Consolas,Menlo,monospace;resize:none;overflow:auto;scrollbar-width:thin;scrollbar-color:#334155 #0a0f18}
+  textarea::-webkit-scrollbar{width:8px;height:8px}
+  textarea::-webkit-scrollbar-track{background:#0a0f18}
+  textarea::-webkit-scrollbar-thumb{background-color:#334155;border-radius:4px;border:2px solid #0a0f18}
+  textarea::-webkit-scrollbar-thumb:hover{background-color:#475569}
+  pre{white-space:pre;overflow:auto;background:#050911;padding:10px;border-radius:6px;margin:0 0 10px;scrollbar-width:thin;scrollbar-color:#334155 #050911}
+  pre::-webkit-scrollbar{height:8px;width:8px}
+  pre::-webkit-scrollbar-track{background:#050911}
+  pre::-webkit-scrollbar-thumb{background-color:#334155;border-radius:4px;border:2px solid #050911}
+  pre::-webkit-scrollbar-thumb:hover{background-color:#475569}
   .status{padding:8px 12px; color:#eab308; border-top:1px solid #111; background:#0a0f18}
   .status.ok{color:#10b981}
   .rightpane{position:relative; background:#000; min-width:0; min-height:0}
@@ -99,18 +109,18 @@
           <li><code>children</code>, <code>animation</code></li>
         </ul>
         <h4 style="margin:6px 0 6px; font-size:13px; color:#93c5fd">3) 최소 예시</h4>
-<pre style="white-space:pre; overflow:auto; background:#050911; padding:10px; border-radius:6px; margin:0 0 10px">{
-  "background": "#0b0f16",
-  "camera": { "pos": [6,4,8], "target": [0,0,0], "fov": 55 },
-  "lights": [
-    { "type": "ambient", "intensity": 0.6, "color": "#fff" },
-    { "type": "directional", "intensity": 0.9, "color": "#fff", "pos": [5,10,7] }
-  ],
-  "objects": [
-    { "type": "box", "size": [1,1,1], "position": [-1.5,0,0], "material": { "color": "#f00" } },
-    { "type": "sphere", "radius": 0.75, "position": [1.5,0,0], "material": { "color": "#00f" } }
-  ]
-}</pre>
+        <pre>{
+          "background": "#0b0f16",
+          "camera": { "pos": [6,4,8], "target": [0,0,0], "fov": 55 },
+          "lights": [
+            { "type": "ambient", "intensity": 0.6, "color": "#fff" },
+            { "type": "directional", "intensity": 0.9, "color": "#fff", "pos": [5,10,7] }
+          ],
+          "objects": [
+            { "type": "box", "size": [1,1,1], "position": [-1.5,0,0], "material": { "color": "#f00" } },
+            { "type": "sphere", "radius": 0.75, "position": [1.5,0,0], "material": { "color": "#00f" } }
+          ]
+        }</pre>
       </div>
     </details>
     <div id="status" class="status">대기 중…</div>
